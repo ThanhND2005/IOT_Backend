@@ -28,7 +28,10 @@ public enum ErrorCode {
     USER_NOT_FOUND("USER_001", "Người dùng không tồn tại", HttpStatus.NOT_FOUND),
     USER_ALREADY_EXISTS("USER_002", "Tên người dùng đã tồn tại", HttpStatus.CONFLICT),
     EMAIL_ALREADY_EXISTS("USER_003", "Email đã được sử dụng", HttpStatus.CONFLICT),
-    USER_INACTIVE("USER_004", "Tài khoản người dùng đã bị khóa hoặc chưa kích hoạt", HttpStatus.FORBIDDEN);
+    USER_INACTIVE("USER_004", "Tài khoản người dùng đã bị khóa hoặc chưa kích hoạt", HttpStatus.FORBIDDEN),
+
+    // Device / IoT
+    DEVICE_TIMEOUT("DEV_001", "Thiết bị không phản hồi trong thời gian quy định", HttpStatus.REQUEST_TIMEOUT);
 
     private final String code;
     private final String message;

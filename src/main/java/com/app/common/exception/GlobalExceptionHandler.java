@@ -39,6 +39,19 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Handle DeviceTimeoutException (IoT device not responding)
+     */
+    @ExceptionHandler(DeviceTimeoutException.class)
+    public ResponseEntity<BaseResponse<Object>> handleDeviceTimeoutException(DeviceTimeoutException ex) {
+        log.warn("Device timeout: {}", ex.getMessage());
+        BaseResponse<Object> response = BaseResponse.error(
+                HttpStatus.REQUEST_TIMEOUT.value(),
+                ex.getMessage()
+        );
+        return new ResponseEntity<>(response, HttpStatus.REQUEST_TIMEOUT);
+    }
+
+    /**
      * Handle @Valid validation exceptions
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
