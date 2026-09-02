@@ -51,22 +51,30 @@ public class DeviceController {
 
         Page<DeviceHistory> resultPage = deviceService.searchDeviceHistory(page, pageSize, request);
 
-        PageResponse<DeviceHistoryItemResponse> pageResponse = PageResponse.from(resultPage, h ->
-                DeviceHistoryItemResponse.builder()
-                        .id(h.getId())
-                        .deviceId(h.getDevice().getId())
-                        .deviceName(h.getDevice().getDeviceName())
-                        .action(h.getAction().name())
-                        .status(h.getStatus().name())
-                        .source(h.getSource())
-                        .executionTimeMs(h.getExecutionTimeMs())
-                        .errorMessage(h.getErrorMessage())
-                        .userId(h.getDevice().getUser().getId())
-                        .fullName(h.getDevice().getUser().getFullName())
-                        .createdAt(h.getCreatedAt())
-                        .updatedAt(h.getUpdatedAt())
-                        .build()
-        );
+        PageResponse<DeviceHistoryItemResponse> pageResponse = PageResponse.from(resultPage, h -> {
+            Long userId = null;
+            String fullName = null;
+            if (h.getDevice() != null && h.getDevice().getUser() != null) {
+                try {
+                    userId = h.getDevice().getUser().getId();
+                    fullName = h.getDevice().getUser().getFullName();
+                } catch (Exception ignored) {}
+            }
+            return DeviceHistoryItemResponse.builder()
+                    .id(h.getId())
+                    .deviceId(h.getDevice() != null ? h.getDevice().getId() : null)
+                    .deviceName(h.getDevice() != null ? h.getDevice().getDeviceName() : null)
+                    .action(h.getAction() != null ? h.getAction().name() : null)
+                    .status(h.getStatus() != null ? h.getStatus().name() : null)
+                    .source(h.getSource())
+                    .executionTimeMs(h.getExecutionTimeMs())
+                    .errorMessage(h.getErrorMessage())
+                    .userId(userId)
+                    .fullName(fullName)
+                    .createdAt(h.getCreatedAt())
+                    .updatedAt(h.getUpdatedAt())
+                    .build();
+        });
 
         return ResponseEntity.ok(BaseResponse.ok("Lấy lịch sử điều khiển thiết bị thành công", pageResponse));
     }

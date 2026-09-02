@@ -1,5 +1,8 @@
 package com.app.common.config;
 
+import com.app.modules.device.dto.DeviceAckMessage;
+import com.app.modules.device.dto.DeviceStatusMessage;
+import com.app.modules.device.service.DeviceService;
 import com.app.modules.sensor.dto.TelemetryMessage;
 import com.app.modules.sensor.service.HardwareWatchdogService;
 import com.app.modules.sensor.service.SensorService;
@@ -8,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
 import org.eclipse.paho.client.mqttv3.MqttCallback;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 @Slf4j
@@ -18,11 +22,15 @@ public class MqttCallbackHandler implements MqttCallback {
     private final SensorService sensorService;
     private final HardwareWatchdogService hardwareWatchdogService;
 
+    private final DeviceService deviceService;
+
     public MqttCallbackHandler(
             SensorService sensorService,
-            HardwareWatchdogService hardwareWatchdogService) {
+            HardwareWatchdogService hardwareWatchdogService,
+            @Lazy DeviceService deviceService) {
         this.sensorService = sensorService;
         this.hardwareWatchdogService = hardwareWatchdogService;
+        this.deviceService = deviceService;
     }
 
     @Override
@@ -43,8 +51,12 @@ public class MqttCallbackHandler implements MqttCallback {
                 sensorService.processIncomingTelemetry(telemetry);
             } else if (topic.startsWith("device/ack/")) {
                 log.info("[MQTT DEVICE ACK] Topic: {} | Payload: {}", topic, payload);
+                DeviceAckMessage ack = objectMapper.readValue(payload, DeviceAckMessage.class);
+                deviceService.handleHardwareAck(ack);
             } else if ("device/status".equals(topic)) {
                 log.info("[MQTT DEVICE STATUS] Topic: {} | Payload: {}", topic, payload);
+                DeviceStatusMessage statusMsg = objectMapper.readValue(payload, DeviceStatusMessage.class);
+                deviceService.handleHardwareStatus(statusMsg);
             }
         } catch (Exception e) {
             log.error("[MQTT HANDLER ERROR] Lỗi phân tích payload topic [{}]: {}", topic, e.getMessage());

@@ -45,10 +45,10 @@ public class GlobalExceptionHandler {
     public ResponseEntity<BaseResponse<Object>> handleDeviceTimeoutException(DeviceTimeoutException ex) {
         log.warn("Device timeout: {}", ex.getMessage());
         BaseResponse<Object> response = BaseResponse.error(
-                HttpStatus.REQUEST_TIMEOUT.value(),
+                HttpStatus.GATEWAY_TIMEOUT.value(),
                 ex.getMessage()
         );
-        return new ResponseEntity<>(response, HttpStatus.REQUEST_TIMEOUT);
+        return new ResponseEntity<>(response, HttpStatus.GATEWAY_TIMEOUT);
     }
 
     /**

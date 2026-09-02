@@ -42,10 +42,20 @@ public class DeviceService {
 
     private final Map<Integer, CompletableFuture<DeviceStatusMessage>> pendingRequests = new ConcurrentHashMap<>();
 
-    private int mapDeviceUuidToNumber(UUID deviceId) {
-        String str = deviceId.toString();
-        if (str.endsWith("01")) return 1;
-        if (str.endsWith("02")) return 2;
+    public int mapDeviceToNumber(Device device) {
+        if (device.getPinGpio() != null) {
+            String pin = device.getPinGpio().trim();
+            if ("D1".equalsIgnoreCase(pin)) return 1;
+            if ("D2".equalsIgnoreCase(pin)) return 2;
+        }
+        if (device.getDeviceName() != null) {
+            String name = device.getDeviceName();
+            if (name.contains("2")) return 2;
+            if (name.contains("1")) return 1;
+        }
+        String str = device.getId().toString();
+        if (str.endsWith("02") || str.endsWith("2")) return 2;
+        if (str.endsWith("01") || str.endsWith("1")) return 1;
         return 1;
     }
 
@@ -60,13 +70,13 @@ public class DeviceService {
                 .build()).toList();
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = DeviceTimeoutException.class)
     public DeviceControlResponse controlDevice(UUID deviceId, DeviceControlRequest request) {
         Device device = deviceRepository.findById(deviceId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thiết bị: " + deviceId));
 
         ActionType action = ActionType.valueOf(request.getAction().toUpperCase());
-        int deviceNum = mapDeviceUuidToNumber(deviceId);
+        int deviceNum = mapDeviceToNumber(device);
 
         // 1. Tạo bản ghi PENDING vào database
         DeviceHistory history = DeviceHistory.builder()
@@ -139,9 +149,27 @@ public class DeviceService {
         CompletableFuture<DeviceStatusMessage> future = pendingRequests.get(deviceNum);
         if (future != null) {
             future.complete(statusMsg);
+        } else {
+            // Cập nhật trạng thái thiết bị nếu nhận được status ngoài luồng pending
+            try {
+                String pin = "D" + deviceNum;
+                deviceRepository.findAll().stream()
+                        .filter(d -> (d.getPinGpio() != null && d.getPinGpio().equalsIgnoreCase(pin))
+                                || (d.getDeviceName() != null && d.getDeviceName().contains(String.valueOf(deviceNum)))
+                                || d.getId().toString().endsWith("0" + deviceNum))
+                        .findFirst()
+                        .ifPresent(d -> {
+                            d.setCurrentStatus(DeviceStatus.valueOf(statusMsg.getStatus()));
+                            d.setLastActiveAt(OffsetDateTime.now());
+                            deviceRepository.save(d);
+                        });
+            } catch (Exception e) {
+                log.warn("Không thể cập nhật trạng thái thiết bị ngoài luồng: {}", e.getMessage());
+            }
         }
     }
 
+    @Transactional(readOnly = true)
     public Page<DeviceHistory> searchDeviceHistory(int page, int pageSize, DynamicSearchRequest request) {
         GenericSpecification<DeviceHistory> spec = new GenericSpecification<>();
         if (request != null && request.getFilters() != null) {
