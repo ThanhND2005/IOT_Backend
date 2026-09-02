@@ -8,7 +8,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
 import org.eclipse.paho.client.mqttv3.MqttCallback;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 @Slf4j
@@ -20,8 +19,8 @@ public class MqttCallbackHandler implements MqttCallback {
     private final HardwareWatchdogService hardwareWatchdogService;
 
     public MqttCallbackHandler(
-            @Lazy SensorService sensorService,
-            @Lazy HardwareWatchdogService hardwareWatchdogService) {
+            SensorService sensorService,
+            HardwareWatchdogService hardwareWatchdogService) {
         this.sensorService = sensorService;
         this.hardwareWatchdogService = hardwareWatchdogService;
     }

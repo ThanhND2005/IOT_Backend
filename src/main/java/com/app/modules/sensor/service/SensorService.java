@@ -87,7 +87,7 @@ public class SensorService {
         if (value == null) {
             return;
         }
-        sensorRepository.findBySensorType(type).ifPresent(sensor -> {
+        sensorRepository.findFirstBySensorType(type).ifPresent(sensor -> {
             SensorLog logItem = SensorLog.builder()
                     .sensor(sensor)
                     .value(value)
@@ -102,7 +102,7 @@ public class SensorService {
     public SensorLatestSnapshotResponse getLatestSnapshot() {
         Map<String, Object> snapshotMap = new HashMap<>();
         for (SensorType type : SensorType.values()) {
-            sensorRepository.findBySensorType(type).ifPresent(s -> {
+            sensorRepository.findFirstBySensorType(type).ifPresent(s -> {
                 sensorLogRepository.findFirstBySensorIdOrderByRecordedAtDesc(s.getId()).ifPresent(log -> {
                     Map<String, Object> metricData = new HashMap<>();
                     metricData.put("sensorId", s.getId());
@@ -127,7 +127,7 @@ public class SensorService {
         int safeLimit = limit <= 0 ? 20 : limit;
 
         for (SensorType type : SensorType.values()) {
-            sensorRepository.findBySensorType(type).ifPresent(s -> {
+            sensorRepository.findFirstBySensorType(type).ifPresent(s -> {
                 List<SensorLog> logs = sensorLogRepository.findBySensorIdOrderByRecordedAtDesc(s.getId(), PageRequest.of(0, safeLimit));
                 List<SensorLog> sortedLogs = new ArrayList<>(logs);
                 Collections.reverse(sortedLogs);

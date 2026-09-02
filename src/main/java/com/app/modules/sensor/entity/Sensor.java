@@ -26,7 +26,7 @@ public class Sensor {
     private String sensorName;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "sensor_type", nullable = false, length = 30)
+    @Column(name = "sensor_type", nullable = false, length = 30, unique = true)
     private SensorType sensorType; // TEMPERATURE, HUMIDITY, LIGHT
 
     @Column(name = "pin_gpio", length = 20)
