@@ -33,6 +33,17 @@ public class PageResponse<T> {
     private boolean hasPrevious;
 
     /**
+     * Alias for items to support standard Spring Page 'content' property in JSON responses.
+     */
+    public List<T> getContent() {
+        return items;
+    }
+
+    public void setContent(List<T> content) {
+        this.items = content;
+    }
+
+    /**
      * Converts a Spring Data Page to PageResponse.
      */
     public static <T> PageResponse<T> from(Page<T> page) {
