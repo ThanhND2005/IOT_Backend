@@ -64,6 +64,7 @@ public class DeviceController {
                     .id(h.getId())
                     .deviceId(h.getDevice() != null ? h.getDevice().getId() : null)
                     .deviceName(h.getDevice() != null ? h.getDevice().getDeviceName() : null)
+                    .deviceType(h.getDevice() != null && h.getDevice().getDeviceType() != null ? h.getDevice().getDeviceType().name() : null)
                     .action(h.getAction() != null ? h.getAction().name() : null)
                     .status(h.getStatus() != null ? h.getStatus().name() : null)
                     .source(h.getSource())

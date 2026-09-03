@@ -14,6 +14,7 @@ public class DeviceHistoryItemResponse {
     private UUID id;
     private UUID deviceId;
     private String deviceName;
+    private String deviceType;
     private String action;
     private String status;
     private String source;
