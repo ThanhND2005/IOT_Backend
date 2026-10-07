@@ -23,8 +23,10 @@ app:
     issuer: base-spring-api
 
 mqtt:
-  broker-url: tcp://localhost:1883
+  broker-url: tcp://localhost:2000
   client: Test_Client
+  username: "nguyendanhthanh"
+  password: "b23dccn772"
   topics:
     sensor-data: sensor/data
     device-ack: device/ack/+

@@ -18,7 +18,7 @@ import org.springframework.context.event.EventListener;
 @RequiredArgsConstructor
 public class MqttConfig {
 
-    @Value("${mqtt.broker-url:tcp://localhost:1883}")
+    @Value("${mqtt.broker-url:tcp://localhost:2000}")
     private String brokerUrl;
     @Value("${mqtt.client:Backend_Server}")
     private String clientId;
@@ -30,7 +30,7 @@ public class MqttConfig {
     private int keepAliveInterval;
     @Value("${mqtt.connection-timeout:10}")
     private int connectionTimeout;
-    @Value("${mqtt.clean-session:true}")
+    @Value("${mqtt.clean-session:false}")
     private boolean cleanSession;
 
     @Value("${mqtt.topics.sensor-data:sensor/data}")
@@ -42,11 +42,27 @@ public class MqttConfig {
 
     private final MqttCallbackHandler mqttCallbackHandler;
     private MqttClient mqttClient;
+    private MqttConnectOptions connectOptions;
 
     @Bean
     public MqttClient mqttClient() throws MqttException {
         this.mqttClient = new MqttClient(brokerUrl, clientId, new MemoryPersistence());
         return this.mqttClient;
+    }
+
+    public synchronized void subscribeTopics() {
+        if (mqttClient != null && mqttClient.isConnected()) {
+            try {
+                mqttClient.subscribe(sensorDataTopic, 1);
+                mqttClient.subscribe(deviceAckTopic, 1);
+                mqttClient.subscribe(deviceStatusTopic, 1);
+                mqttClient.subscribe("device/status/+", 1);
+                log.info(">>> [MQTT] Đã Subscribe thành công: [{}], [{}], [{}], [device/status/+]",
+                        sensorDataTopic, deviceAckTopic, deviceStatusTopic);
+            } catch (MqttException e) {
+                log.error(">>> [MQTT] Lỗi khi Subscribe topics: {}", e.getMessage());
+            }
+        }
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -55,30 +71,46 @@ public class MqttConfig {
             return;
         }
 
-        MqttConnectOptions options = new MqttConnectOptions();
-        options.setCleanSession(cleanSession);
-        options.setAutomaticReconnect(true);
-        options.setConnectionTimeout(connectionTimeout);
-        options.setKeepAliveInterval(keepAliveInterval);
+        connectOptions = new MqttConnectOptions();
+        connectOptions.setCleanSession(cleanSession);
+        connectOptions.setAutomaticReconnect(true);
+        connectOptions.setConnectionTimeout(connectionTimeout);
+        connectOptions.setKeepAliveInterval(keepAliveInterval);
         if (username != null && !username.isBlank()) {
-            options.setUserName(username);
+            connectOptions.setUserName(username);
         }
         if (password != null && !password.isBlank()) {
-            options.setPassword(password.toCharArray());
+            connectOptions.setPassword(password.toCharArray());
         }
 
+        mqttCallbackHandler.setOnConnectCompleteCallback(reconnect -> {
+            log.info(">>> [MQTT] Callback connectComplete kích hoạt (reconnect={}). Đang đăng ký lại topics...", reconnect);
+            subscribeTopics();
+        });
         mqttClient.setCallback(mqttCallbackHandler);
+
         try {
             if (!mqttClient.isConnected()) {
-                mqttClient.connect(options);
+                mqttClient.connect(connectOptions);
                 log.info(">>> [MQTT] Kết nối Mosquitto Broker THÀNH CÔNG: {}", brokerUrl);
-                mqttClient.subscribe(sensorDataTopic, 1);
-                mqttClient.subscribe(deviceAckTopic, 1);
-                mqttClient.subscribe(deviceStatusTopic, 1);
-                log.info(">>> [MQTT] Đã Subscribe: [{}], [{}], [{}]", sensorDataTopic, deviceAckTopic, deviceStatusTopic);
+                subscribeTopics();
             }
         } catch (MqttException e) {
-            log.error(">>> [MQTT] Lỗi kết nối Broker: {}", e.getMessage());
+            log.error(">>> [MQTT] Lỗi kết nối Broker ban đầu: {}", e.getMessage());
+        }
+    }
+
+    @org.springframework.scheduling.annotation.Scheduled(fixedDelay = 5000)
+    public void checkAndReconnect() {
+        if (mqttClient != null && !mqttClient.isConnected() && connectOptions != null) {
+            log.warn(">>> [MQTT WATCHDOG] Phát hiện mất kết nối MQTT Broker, đang thử kết nối lại...");
+            try {
+                mqttClient.connect(connectOptions);
+                subscribeTopics();
+                log.info(">>> [MQTT WATCHDOG] Đã kết nối lại Mosquitto Broker thành công!");
+            } catch (Exception e) {
+                log.error(">>> [MQTT WATCHDOG] Kết nối lại thất bại: {}", e.getMessage());
+            }
         }
     }
 

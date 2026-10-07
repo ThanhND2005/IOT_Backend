@@ -103,7 +103,8 @@ public class DeviceService {
             long executionTimeMs = System.currentTimeMillis() - startTime;
 
             // 3. Pha 2 thành công -> Cập nhật SUCCESS vào DB
-            device.setCurrentStatus(DeviceStatus.valueOf(statusMsg.getStatus()));
+            String resolvedStatus = statusMsg.getStatus() != null ? statusMsg.getStatus().trim().toUpperCase() : action.name();
+            device.setCurrentStatus(DeviceStatus.valueOf(resolvedStatus));
             device.setLastActiveAt(OffsetDateTime.now());
             deviceRepository.save(device);
 
@@ -111,7 +112,8 @@ public class DeviceService {
             history.setExecutionTimeMs((int) executionTimeMs);
             deviceHistoryRepository.save(history);
 
-            log.info("[2-PHASE] Điều khiển thiết bị {} THÀNH CÔNG trong {} ms", device.getDeviceName(), executionTimeMs);
+            log.info("[2-PHASE] Điều khiển thiết bị {} THÀNH CÔNG trong {} ms, trạng thái mới: {}",
+                    device.getDeviceName(), executionTimeMs, resolvedStatus);
 
             return DeviceControlResponse.builder()
                     .actionId(history.getId())
@@ -145,9 +147,14 @@ public class DeviceService {
 
     public void handleHardwareStatus(DeviceStatusMessage statusMsg) {
         int deviceNum = statusMsg.getDeviceId();
-        log.info("[2-PHASE] [Pha 2 STATUS] Nhận trạng thái từ thiết bị {}: {}", deviceNum, statusMsg.getStatus());
+        String rawStatus = statusMsg.getStatus();
+        String normalizedStatus = rawStatus != null ? rawStatus.trim().toUpperCase() : "OFF";
+        statusMsg.setStatus(normalizedStatus);
+
+        log.info("[2-PHASE] [Pha 2 STATUS] Nhận trạng thái từ thiết bị {}: {}", deviceNum, normalizedStatus);
         CompletableFuture<DeviceStatusMessage> future = pendingRequests.get(deviceNum);
         if (future != null) {
+            log.info("[2-PHASE] Tìm thấy pending request cho thiết bị {}, completing future...", deviceNum);
             future.complete(statusMsg);
         } else {
             // Cập nhật trạng thái thiết bị nếu nhận được status ngoài luồng pending
@@ -159,9 +166,10 @@ public class DeviceService {
                                 || d.getId().toString().endsWith("0" + deviceNum))
                         .findFirst()
                         .ifPresent(d -> {
-                            d.setCurrentStatus(DeviceStatus.valueOf(statusMsg.getStatus()));
+                            d.setCurrentStatus(DeviceStatus.valueOf(normalizedStatus));
                             d.setLastActiveAt(OffsetDateTime.now());
                             deviceRepository.save(d);
+                            log.info("[STATUS UPDATE] Đã cập nhật trạng thái thiết bị {} sang {}", d.getDeviceName(), normalizedStatus);
                         });
             } catch (Exception e) {
                 log.warn("Không thể cập nhật trạng thái thiết bị ngoài luồng: {}", e.getMessage());
@@ -182,7 +190,9 @@ public class DeviceService {
             sort = Sort.by(direction, request.getSortBy());
         }
 
-        Pageable pageable = PageRequest.of(Math.max(0, page - 1), pageSize, sort);
+        int safePage = Math.max(0, page - 1);
+        int safePageSize = pageSize <= 0 ? 10 : pageSize;
+        Pageable pageable = PageRequest.of(safePage, safePageSize, sort);
         return deviceHistoryRepository.findAll(spec, pageable);
     }
 }

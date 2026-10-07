@@ -61,7 +61,19 @@ public class GenericSpecification<T> implements Specification<T> {
 
                     switch (param.getOperate()) {
                         case EQUAL -> predicates.add(builder.equal(path, castedValue));
-                        case LIKE -> predicates.add(builder.like(builder.lower(path.as(String.class)), "%" + String.valueOf(castedValue).toLowerCase() + "%"));
+                        case LIKE -> {
+                            Class<?> javaType = path.getJavaType();
+                            Expression<String> stringExpr;
+                            if (String.class.equals(javaType)) {
+                                stringExpr = path.as(String.class);
+                            } else if (java.time.temporal.Temporal.class.isAssignableFrom(javaType) || java.util.Date.class.isAssignableFrom(javaType)) {
+                                stringExpr = builder.function("to_char", String.class, path, builder.literal("YYYY-MM-DD HH24:MI:SS"));
+                            } else {
+                                stringExpr = builder.function("concat", String.class, path, builder.literal(""));
+                            }
+                            String searchVal = param.getValue() != null ? param.getValue().toString().trim().toLowerCase() : "";
+                            predicates.add(builder.like(builder.lower(stringExpr), "%" + searchVal + "%"));
+                        }
                         case IN -> {
                             CriteriaBuilder.In<Object> inClause = builder.in(path);
                             if (castedValue instanceof List<?> list) {

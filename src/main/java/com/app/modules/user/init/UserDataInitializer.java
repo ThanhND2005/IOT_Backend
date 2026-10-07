@@ -45,9 +45,9 @@ public class UserDataInitializer implements CommandLineRunner {
                     .username("admin")
                     .password(passwordEncoder.encode("Admin@123"))
                     .email("admin@example.com")
-                    .fullName("Quản trị viên")
+                    .fullName("Nguyễn Danh Thành")
                     .phoneNumber("0901234567")
-                    .studentCode("B21DCCN001")
+                    .studentCode("B23DCCN772")
                     .role(Role.ROLE_ADMIN)
                     .status(UserStatus.ACTIVE)
                     .build();
@@ -65,7 +65,7 @@ public class UserDataInitializer implements CommandLineRunner {
                     .email("user@example.com")
                     .fullName("Người dùng mẫu")
                     .phoneNumber("0912345678")
-                    .studentCode("B21DCCN002")
+                    .studentCode("B23DCCN000")
                     .role(Role.ROLE_USER)
                     .status(UserStatus.ACTIVE)
                     .build();
@@ -76,6 +76,14 @@ public class UserDataInitializer implements CommandLineRunner {
 
         if (admin != null) {
             boolean updated = false;
+            if ("Quản trị viên".equals(admin.getFullName()) || admin.getFullName() == null) {
+                admin.setFullName("Nguyễn Danh Thành");
+                updated = true;
+            }
+            if ("B21DCCN001".equals(admin.getStudentCode()) || admin.getStudentCode() == null) {
+                admin.setStudentCode("B23DCCN772");
+                updated = true;
+            }
             if (admin.getAvatarUrl() == null) {
                 admin.setAvatarUrl("https://api.dicebear.com/7.x/avataaars/svg?seed=NguyenDanhThanh&backgroundColor=b6e3f4");
                 updated = true;
@@ -93,7 +101,7 @@ public class UserDataInitializer implements CommandLineRunner {
                 updated = true;
             }
             if (admin.getApiDocUrl() == null) {
-                admin.setApiDocUrl("https://your-postman-api-doc");
+                admin.setApiDocUrl("http://localhost:8080/swagger-ui/index.html");
                 updated = true;
             }
             if (updated) {

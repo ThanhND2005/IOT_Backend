@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping({"/devices", "/api/v1/devices"})
+@RequestMapping("/devices")
 @RequiredArgsConstructor
 public class DeviceController {
 

@@ -80,13 +80,13 @@ logging:
     org.springframework.security: INFO
 
 mqtt:
-  broker-url: tcp://localhost:1883
+  broker-url: tcp://localhost:2000
   client: Backend_Server
-  username: ""
-  password: ""
+  username: "nguyendanhthanh"
+  password: "b23dccn772"
   keep-alive: 60
   connection-timeout: 10
-  clean-session: true
+  clean-session: false
   qos: 1
   topics:
     sensor-data: sensor/data
