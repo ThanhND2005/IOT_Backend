@@ -38,6 +38,7 @@ public class DeviceService {
 
     private final DeviceRepository deviceRepository;
     private final DeviceHistoryRepository deviceHistoryRepository;
+    private final DeviceHistoryTxService deviceHistoryTxService;
     private final MqttPublisher mqttPublisher;
 
     private final Map<Integer, CompletableFuture<DeviceStatusMessage>> pendingRequests = new ConcurrentHashMap<>();
@@ -70,7 +71,6 @@ public class DeviceService {
                 .build()).toList();
     }
 
-    @Transactional(noRollbackFor = DeviceTimeoutException.class)
     public DeviceControlResponse controlDevice(UUID deviceId, DeviceControlRequest request) {
         Device device = deviceRepository.findById(deviceId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thiết bị: " + deviceId));
@@ -78,39 +78,27 @@ public class DeviceService {
         ActionType action = ActionType.valueOf(request.getAction().toUpperCase());
         int deviceNum = mapDeviceToNumber(device);
 
-        // 1. Tạo bản ghi PENDING vào database
-        DeviceHistory history = DeviceHistory.builder()
-                .device(device)
-                .action(action)
-                .status(ActionStatus.PENDING)
-                .source("WEB_DASHBOARD")
-                .build();
-        history = deviceHistoryRepository.save(history);
+        // 1. Tạo bản ghi PENDING và commit ngay lập tức vào database qua transaction độc lập
+        DeviceHistory history = deviceHistoryTxService.createPendingHistory(device, action, "WEB_DASHBOARD");
 
         CompletableFuture<DeviceStatusMessage> future = new CompletableFuture<>();
         pendingRequests.put(deviceNum, future);
         long startTime = System.currentTimeMillis();
 
-        // 2. Pha 1: Gửi lệnh device/control/{id}
+        // 2. Gửi lệnh device/control/{id}
         String controlTopic = "device/control/" + deviceNum;
         String controlPayload = String.format("{\"action\":\"%s\"}", action.name());
         mqttPublisher.publish(controlTopic, controlPayload);
-        log.info("[2-PHASE] [Pha 1] Đã gửi lệnh điều khiển tới {}: {}", controlTopic, controlPayload);
+        log.info("[CONTROL] Đã gửi lệnh điều khiển tới {}: {}", controlTopic, controlPayload);
 
         try {
             // Chờ phản hồi tối đa 5000ms
             DeviceStatusMessage statusMsg = future.get(5000, TimeUnit.MILLISECONDS);
             long executionTimeMs = System.currentTimeMillis() - startTime;
 
-            // 3. Pha 2 thành công -> Cập nhật SUCCESS vào DB
+            // 3. Phản hồi thành công -> Cập nhật SUCCESS vào DB
             String resolvedStatus = statusMsg.getStatus() != null ? statusMsg.getStatus().trim().toUpperCase() : action.name();
-            device.setCurrentStatus(DeviceStatus.valueOf(resolvedStatus));
-            device.setLastActiveAt(OffsetDateTime.now());
-            deviceRepository.save(device);
-
-            history.setStatus(ActionStatus.SUCCESS);
-            history.setExecutionTimeMs((int) executionTimeMs);
-            deviceHistoryRepository.save(history);
+            deviceHistoryTxService.markSuccess(history.getId(), device.getId(), resolvedStatus, (int) executionTimeMs);
 
             log.info("Điều khiển thiết bị {} THÀNH CÔNG trong {} ms, trạng thái mới: {}",
                     device.getDeviceName(), executionTimeMs, resolvedStatus);
@@ -128,9 +116,7 @@ public class DeviceService {
         } catch (Exception e) {
             log.error("Timeout điều khiển thiết bị {}: {}", device.getDeviceName(), e.getMessage());
 
-            history.setStatus(ActionStatus.ERROR);
-            history.setErrorMessage("Thiết bị không phản hồi trong 5000ms (Gateway Timeout)");
-            deviceHistoryRepository.save(history);
+            deviceHistoryTxService.markError(history.getId(), "Thiết bị không phản hồi trong 5000ms (Gateway Timeout)");
 
             throw new DeviceTimeoutException("Thiết bị không phản hồi trong thời gian quy định (Timeout 5s)");
         } finally {
@@ -138,7 +124,6 @@ public class DeviceService {
         }
     }
 
-    @Transactional(noRollbackFor = DeviceTimeoutException.class)
     public List<DeviceControlResponse> controlAllDevices(DeviceControlRequest request) {
         List<Device> devices = deviceRepository.findAll();
         if (devices.isEmpty()) {
@@ -148,23 +133,19 @@ public class DeviceService {
         ActionType action = ActionType.valueOf(request.getAction().toUpperCase());
         long startTime = System.currentTimeMillis();
 
-        // 1. Tạo bản ghi PENDING cho tất cả thiết bị và đăng ký CompletableFuture
+        // 1. Tạo bản ghi PENDING cho tất cả thiết bị và commit ngay lập tức vào database
+        List<DeviceHistory> histories = deviceHistoryTxService.createPendingHistories(devices, action, "WEB_DASHBOARD");
+
         Map<Integer, Device> deviceNumMap = new java.util.HashMap<>();
         Map<Integer, DeviceHistory> historyMap = new java.util.HashMap<>();
         List<CompletableFuture<DeviceStatusMessage>> futures = new java.util.ArrayList<>();
 
-        for (Device dev : devices) {
+        for (int i = 0; i < devices.size(); i++) {
+            Device dev = devices.get(i);
+            DeviceHistory hist = histories.get(i);
             int num = mapDeviceToNumber(dev);
             deviceNumMap.put(num, dev);
-
-            DeviceHistory history = DeviceHistory.builder()
-                    .device(dev)
-                    .action(action)
-                    .status(ActionStatus.PENDING)
-                    .source("WEB_DASHBOARD")
-                    .build();
-            history = deviceHistoryRepository.save(history);
-            historyMap.put(num, history);
+            historyMap.put(num, hist);
 
             CompletableFuture<DeviceStatusMessage> future = new CompletableFuture<>();
             pendingRequests.put(num, future);
@@ -195,13 +176,7 @@ public class DeviceService {
                 String resolvedStatus = (statusMsg != null && statusMsg.getStatus() != null)
                         ? statusMsg.getStatus().trim().toUpperCase() : action.name();
 
-                dev.setCurrentStatus(DeviceStatus.valueOf(resolvedStatus));
-                dev.setLastActiveAt(now);
-                deviceRepository.save(dev);
-
-                history.setStatus(ActionStatus.SUCCESS);
-                history.setExecutionTimeMs((int) executionTimeMs);
-                deviceHistoryRepository.save(history);
+                deviceHistoryTxService.markSuccess(history.getId(), dev.getId(), resolvedStatus, (int) executionTimeMs);
 
                 responses.add(DeviceControlResponse.builder()
                         .actionId(history.getId())
@@ -223,11 +198,7 @@ public class DeviceService {
             // Đánh dấu bản ghi nào chưa hoàn thành là ERROR
             for (Map.Entry<Integer, DeviceHistory> entry : historyMap.entrySet()) {
                 DeviceHistory history = entry.getValue();
-                if (history.getStatus() == ActionStatus.PENDING) {
-                    history.setStatus(ActionStatus.ERROR);
-                    history.setErrorMessage("Thiết bị không phản hồi trong 5000ms (Gateway Timeout)");
-                    deviceHistoryRepository.save(history);
-                }
+                deviceHistoryTxService.markError(history.getId(), "Thiết bị không phản hồi trong 5000ms (Gateway Timeout)");
             }
 
             throw new DeviceTimeoutException("Một hoặc nhiều thiết bị không phản hồi trong thời gian quy định (Timeout 5s)");
