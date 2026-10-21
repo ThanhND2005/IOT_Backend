@@ -112,7 +112,7 @@ public class DeviceService {
             history.setExecutionTimeMs((int) executionTimeMs);
             deviceHistoryRepository.save(history);
 
-            log.info("[2-PHASE] Điều khiển thiết bị {} THÀNH CÔNG trong {} ms, trạng thái mới: {}",
+            log.info("Điều khiển thiết bị {} THÀNH CÔNG trong {} ms, trạng thái mới: {}",
                     device.getDeviceName(), executionTimeMs, resolvedStatus);
 
             return DeviceControlResponse.builder()
@@ -126,7 +126,7 @@ public class DeviceService {
                     .build();
 
         } catch (Exception e) {
-            log.error("[2-PHASE ERROR] Timeout điều khiển thiết bị {}: {}", device.getDeviceName(), e.getMessage());
+            log.error("Timeout điều khiển thiết bị {}: {}", device.getDeviceName(), e.getMessage());
 
             history.setStatus(ActionStatus.ERROR);
             history.setErrorMessage("Thiết bị không phản hồi trong 5000ms (Gateway Timeout)");
@@ -138,11 +138,104 @@ public class DeviceService {
         }
     }
 
-    public void handleHardwareAck(DeviceAckMessage ack) {
-        int deviceNum = ack.getDeviceId();
-        log.info("[2-PHASE] [Pha 1 ACK] Nhận ACK từ thiết bị {}. Gửi lệnh Confirm...", deviceNum);
-        String confirmTopic = "device/confirm/" + deviceNum;
-        mqttPublisher.publish(confirmTopic, "{\"action\":\"CONFIRM\"}");
+    @Transactional(noRollbackFor = DeviceTimeoutException.class)
+    public List<DeviceControlResponse> controlAllDevices(DeviceControlRequest request) {
+        List<Device> devices = deviceRepository.findAll();
+        if (devices.isEmpty()) {
+            return List.of();
+        }
+
+        ActionType action = ActionType.valueOf(request.getAction().toUpperCase());
+        long startTime = System.currentTimeMillis();
+
+        // 1. Tạo bản ghi PENDING cho tất cả thiết bị và đăng ký CompletableFuture
+        Map<Integer, Device> deviceNumMap = new java.util.HashMap<>();
+        Map<Integer, DeviceHistory> historyMap = new java.util.HashMap<>();
+        List<CompletableFuture<DeviceStatusMessage>> futures = new java.util.ArrayList<>();
+
+        for (Device dev : devices) {
+            int num = mapDeviceToNumber(dev);
+            deviceNumMap.put(num, dev);
+
+            DeviceHistory history = DeviceHistory.builder()
+                    .device(dev)
+                    .action(action)
+                    .status(ActionStatus.PENDING)
+                    .source("WEB_DASHBOARD")
+                    .build();
+            history = deviceHistoryRepository.save(history);
+            historyMap.put(num, history);
+
+            CompletableFuture<DeviceStatusMessage> future = new CompletableFuture<>();
+            pendingRequests.put(num, future);
+            futures.add(future);
+        }
+
+        // 2. Gửi duy nhất 1 bản tin broadcast tới topic device/control/all
+        String controlTopic = "device/control/all";
+        String controlPayload = String.format("{\"action\":\"%s\"}", action.name());
+        mqttPublisher.publish(controlTopic, controlPayload);
+        log.info("[BROADCAST] Đã gửi lệnh điều khiển đồng thời tới {}: {}", controlTopic, controlPayload);
+
+        try {
+            // Chờ tất cả thiết bị phản hồi trong tối đa 5000ms
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).get(5000, TimeUnit.MILLISECONDS);
+            long executionTimeMs = System.currentTimeMillis() - startTime;
+
+            List<DeviceControlResponse> responses = new java.util.ArrayList<>();
+            OffsetDateTime now = OffsetDateTime.now();
+
+            for (Map.Entry<Integer, Device> entry : deviceNumMap.entrySet()) {
+                int num = entry.getKey();
+                Device dev = entry.getValue();
+                DeviceHistory history = historyMap.get(num);
+                CompletableFuture<DeviceStatusMessage> f = pendingRequests.get(num);
+
+                DeviceStatusMessage statusMsg = f != null && f.isDone() ? f.getNow(null) : null;
+                String resolvedStatus = (statusMsg != null && statusMsg.getStatus() != null)
+                        ? statusMsg.getStatus().trim().toUpperCase() : action.name();
+
+                dev.setCurrentStatus(DeviceStatus.valueOf(resolvedStatus));
+                dev.setLastActiveAt(now);
+                deviceRepository.save(dev);
+
+                history.setStatus(ActionStatus.SUCCESS);
+                history.setExecutionTimeMs((int) executionTimeMs);
+                deviceHistoryRepository.save(history);
+
+                responses.add(DeviceControlResponse.builder()
+                        .actionId(history.getId())
+                        .deviceId(dev.getId())
+                        .deviceName(dev.getDeviceName())
+                        .action(action.name())
+                        .status("SUCCESS")
+                        .executionTimeMs((int) executionTimeMs)
+                        .confirmedAt(now)
+                        .build());
+            }
+
+            log.info("Điều khiển TẤT CẢ thiết bị THÀNH CÔNG trong {} ms", executionTimeMs);
+            return responses;
+
+        } catch (Exception e) {
+            log.error("Timeout hoặc lỗi điều khiển tất cả thiết bị: {}", e.getMessage());
+
+            // Đánh dấu bản ghi nào chưa hoàn thành là ERROR
+            for (Map.Entry<Integer, DeviceHistory> entry : historyMap.entrySet()) {
+                DeviceHistory history = entry.getValue();
+                if (history.getStatus() == ActionStatus.PENDING) {
+                    history.setStatus(ActionStatus.ERROR);
+                    history.setErrorMessage("Thiết bị không phản hồi trong 5000ms (Gateway Timeout)");
+                    deviceHistoryRepository.save(history);
+                }
+            }
+
+            throw new DeviceTimeoutException("Một hoặc nhiều thiết bị không phản hồi trong thời gian quy định (Timeout 5s)");
+        } finally {
+            for (Integer num : deviceNumMap.keySet()) {
+                pendingRequests.remove(num);
+            }
+        }
     }
 
     public void handleHardwareStatus(DeviceStatusMessage statusMsg) {
@@ -151,7 +244,7 @@ public class DeviceService {
         String normalizedStatus = rawStatus != null ? rawStatus.trim().toUpperCase() : "OFF";
         statusMsg.setStatus(normalizedStatus);
 
-        log.info("[2-PHASE] [Pha 2 STATUS] Nhận trạng thái từ thiết bị {}: {}", deviceNum, normalizedStatus);
+        log.info("Nhận trạng thái từ thiết bị {}: {}", deviceNum, normalizedStatus);
         CompletableFuture<DeviceStatusMessage> future = pendingRequests.get(deviceNum);
         if (future != null) {
             log.info("[2-PHASE] Tìm thấy pending request cho thiết bị {}, completing future...", deviceNum);

@@ -35,8 +35,6 @@ public class MqttConfig {
 
     @Value("${mqtt.topics.sensor-data:sensor/data}")
     private String sensorDataTopic;
-    @Value("${mqtt.topics.device-ack:device/ack/+}")
-    private String deviceAckTopic;
     @Value("${mqtt.topics.device-status:device/status}")
     private String deviceStatusTopic;
 
@@ -54,11 +52,10 @@ public class MqttConfig {
         if (mqttClient != null && mqttClient.isConnected()) {
             try {
                 mqttClient.subscribe(sensorDataTopic, 1);
-                mqttClient.subscribe(deviceAckTopic, 1);
                 mqttClient.subscribe(deviceStatusTopic, 1);
                 mqttClient.subscribe("device/status/+", 1);
-                log.info(">>> [MQTT] Đã Subscribe thành công: [{}], [{}], [{}], [device/status/+]",
-                        sensorDataTopic, deviceAckTopic, deviceStatusTopic);
+                log.info(">>> [MQTT] Đã Subscribe thành công: [{}], [{}], [device/status/+]",
+                        sensorDataTopic, deviceStatusTopic);
             } catch (MqttException e) {
                 log.error(">>> [MQTT] Lỗi khi Subscribe topics: {}", e.getMessage());
             }

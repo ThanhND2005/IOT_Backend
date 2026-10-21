@@ -1,6 +1,7 @@
 package com.app.modules.user.entity;
 
 import com.app.common.base.BaseEntity;
+import com.app.modules.device.entity.Device;
 import com.app.modules.sensor.entity.Sensor;
 import jakarta.persistence.*;
 import lombok.*;
@@ -63,4 +64,8 @@ public class User extends BaseEntity {
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<Sensor> sensors = new ArrayList<>();
+
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<Device> devices = new ArrayList<>();
 }

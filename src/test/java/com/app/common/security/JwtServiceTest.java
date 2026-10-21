@@ -9,6 +9,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
+import java.util.UUID;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
@@ -29,7 +31,7 @@ class JwtServiceTest {
                 .role(Role.ROLE_USER)
                 .status(UserStatus.ACTIVE)
                 .build();
-        user.setId(99L);
+        user.setId(UUID.randomUUID());
 
         userPrincipal = UserPrincipal.create(user);
     }

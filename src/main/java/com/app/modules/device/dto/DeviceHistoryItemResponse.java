@@ -20,7 +20,7 @@ public class DeviceHistoryItemResponse {
     private String source;
     private Integer executionTimeMs;
     private String errorMessage;
-    private Long userId;
+    private UUID userId;
     private String fullName;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;

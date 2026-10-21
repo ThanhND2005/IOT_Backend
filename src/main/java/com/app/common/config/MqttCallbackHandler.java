@@ -1,6 +1,5 @@
 package com.app.common.config;
 
-import com.app.modules.device.dto.DeviceAckMessage;
 import com.app.modules.device.dto.DeviceStatusMessage;
 import com.app.modules.device.service.DeviceService;
 import com.app.modules.sensor.dto.TelemetryMessage;
@@ -66,10 +65,6 @@ public class MqttCallbackHandler implements MqttCallbackExtended {
             if ("sensor/data".equals(topic)) {
                 TelemetryMessage telemetry = objectMapper.readValue(payload, TelemetryMessage.class);
                 sensorService.processIncomingTelemetry(telemetry);
-            } else if (topic.startsWith("device/ack/")) {
-                log.info("[MQTT DEVICE ACK] Topic: {} | Payload: {}", topic, payload);
-                DeviceAckMessage ack = objectMapper.readValue(payload, DeviceAckMessage.class);
-                deviceService.handleHardwareAck(ack);
             } else if ("device/status".equals(topic) || topic.startsWith("device/status/")) {
                 log.info("[MQTT DEVICE STATUS] Topic: {} | Payload: {}", topic, payload);
                 DeviceStatusMessage statusMsg;

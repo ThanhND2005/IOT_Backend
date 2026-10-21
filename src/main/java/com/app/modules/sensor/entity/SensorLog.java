@@ -33,7 +33,6 @@ public class SensorLog {
     @Column(nullable = false, length = 20)
     private String unit;
 
-    @CreationTimestamp
     @Column(name = "recorded_at", nullable = false, updatable = false)
     private OffsetDateTime recordedAt;
 }

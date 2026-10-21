@@ -15,7 +15,7 @@ INSERT INTO users (
     student_code, avatar_url, github_url, figma_url, system_doc_url, api_doc_url,
     role, status, is_deleted, created_at, updated_at
 ) VALUES (
-    1,
+    'e1a2b3c4-0001-0001-0001-000000000001',
     'admin',
     'b23dccn772@ptit.edu.vn',
     '$2a$10$7R0Z4b0V78sZg7K8kX9h1u0.sU2p.bQ9O/Kz7uD1Kz7uD1Kz7uD1K', -- Admin@123
@@ -42,9 +42,6 @@ INSERT INTO users (
     api_doc_url = EXCLUDED.api_doc_url,
     updated_at = NOW();
 
--- Cập nhật sequence cho bảng users nếu cần
-SELECT setval(pg_get_serial_sequence('users', 'id'), COALESCE((SELECT MAX(id) FROM users), 1));
-
 
 -- --------------------------------------------------------------------
 -- 3. THÊM DANH MỤC THIẾT BỊ (DEVICES) DỰA THEO hardware.ino
@@ -63,7 +60,7 @@ INSERT INTO devices (
     'D1',
     'OFF',
     'Đèn LED điều khiển thử nghiệm số 1 (Pin D1 trên ESP8266)',
-    1,
+    'e1a2b3c4-0001-0001-0001-000000000001',
     NOW() - INTERVAL '1 hour',
     NOW() - INTERVAL '1 day',
     NOW()
@@ -75,7 +72,7 @@ INSERT INTO devices (
     'D2',
     'OFF',
     'Đèn LED điều khiển thử nghiệm số 2 (Pin D2 trên ESP8266)',
-    1,
+    'e1a2b3c4-0001-0001-0001-000000000001',
     NOW() - INTERVAL '30 minutes',
     NOW() - INTERVAL '1 day',
     NOW()
@@ -105,7 +102,7 @@ INSERT INTO sensors (
     50.00,
     'ACTIVE',
     'Cảm biến DHT11 đo nhiệt độ môi trường (Chân D4 trên ESP8266)',
-    1,
+    'e1a2b3c4-0001-0001-0001-000000000001',
     NOW() - INTERVAL '1 day'
 ),
 (
@@ -118,7 +115,7 @@ INSERT INTO sensors (
     90.00,
     'ACTIVE',
     'Cảm biến DHT11 đo độ ẩm không khí (Chân D4 trên ESP8266)',
-    1,
+    'e1a2b3c4-0001-0001-0001-000000000001',
     NOW() - INTERVAL '1 day'
 ),
 (
@@ -131,7 +128,7 @@ INSERT INTO sensors (
     1000.00,
     'ACTIVE',
     'Cảm biến quang trở LDR đo độ sáng phòng (Chân Analog A0)',
-    1,
+    'e1a2b3c4-0001-0001-0001-000000000001',
     NOW() - INTERVAL '1 day'
 )
 ON CONFLICT (sensor_type) DO UPDATE SET

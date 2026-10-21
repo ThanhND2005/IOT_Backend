@@ -63,16 +63,34 @@ public class GenericSpecification<T> implements Specification<T> {
                         case EQUAL -> predicates.add(builder.equal(path, castedValue));
                         case LIKE -> {
                             Class<?> javaType = path.getJavaType();
-                            Expression<String> stringExpr;
-                            if (String.class.equals(javaType)) {
-                                stringExpr = path.as(String.class);
-                            } else if (java.time.temporal.Temporal.class.isAssignableFrom(javaType) || java.util.Date.class.isAssignableFrom(javaType)) {
-                                stringExpr = builder.function("to_char", String.class, path, builder.literal("YYYY-MM-DD HH24:MI:SS"));
-                            } else {
-                                stringExpr = builder.function("concat", String.class, path, builder.literal(""));
-                            }
                             String searchVal = param.getValue() != null ? param.getValue().toString().trim().toLowerCase() : "";
-                            predicates.add(builder.like(builder.lower(stringExpr), "%" + searchVal + "%"));
+
+                            if (java.time.temporal.Temporal.class.isAssignableFrom(javaType) || java.util.Date.class.isAssignableFrom(javaType)) {
+                                // Chuẩn hóa chuỗi tìm kiếm (hỗ trợ cả / và -)
+                                String searchDash = searchVal.replace('/', '-');
+                                String searchSlash = searchVal.replace('-', '/');
+
+                                // Biểu thức thời gian theo múi giờ Việt Nam (Asia/Ho_Chi_Minh)
+                                Expression<?> vnTimeExpr = builder.function("timezone", Object.class, builder.literal("Asia/Ho_Chi_Minh"), path);
+                                Expression<String> vnDashStr = builder.function("to_char", String.class, vnTimeExpr, builder.literal("YYYY-MM-DD HH24:MI:SS"));
+                                Expression<String> vnSlashStr = builder.function("to_char", String.class, vnTimeExpr, builder.literal("YYYY/MM/DD HH24:MI:SS"));
+
+                                // Biểu thức thời gian gốc (UTC)
+                                Expression<String> utcDashStr = builder.function("to_char", String.class, path, builder.literal("YYYY-MM-DD HH24:MI:SS"));
+                                Expression<String> utcSlashStr = builder.function("to_char", String.class, path, builder.literal("YYYY/MM/DD HH24:MI:SS"));
+
+                                Predicate pVnDash = builder.like(builder.lower(vnDashStr), "%" + searchDash + "%");
+                                Predicate pVnSlash = builder.like(builder.lower(vnSlashStr), "%" + searchSlash + "%");
+                                Predicate pUtcDash = builder.like(builder.lower(utcDashStr), "%" + searchDash + "%");
+                                Predicate pUtcSlash = builder.like(builder.lower(utcSlashStr), "%" + searchSlash + "%");
+
+                                predicates.add(builder.or(pVnDash, pVnSlash, pUtcDash, pUtcSlash));
+                            } else {
+                                Expression<String> stringExpr = String.class.equals(javaType)
+                                        ? path.as(String.class)
+                                        : builder.function("concat", String.class, path, builder.literal(""));
+                                predicates.add(builder.like(builder.lower(stringExpr), "%" + searchVal + "%"));
+                            }
                         }
                         case IN -> {
                             CriteriaBuilder.In<Object> inClause = builder.in(path);

@@ -4,6 +4,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Utility class for Spring Security operations.
@@ -27,7 +28,7 @@ public final class SecurityUtils {
     /**
      * Get the current authenticated user's ID
      */
-    public static Optional<Long> getCurrentUserId() {
+    public static Optional<UUID> getCurrentUserId() {
         return getCurrentUserPrincipal().map(UserPrincipal::getId);
     }
 

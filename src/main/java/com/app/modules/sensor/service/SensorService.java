@@ -52,7 +52,11 @@ public class SensorService {
             return;
         }
 
-        OffsetDateTime now = OffsetDateTime.now();
+        // Chuẩn hóa mốc thời gian tròn 2 giây gần nhất để biểu đồ hiển thị đều đặn 2s/lần không bị lệch mili-giây
+        OffsetDateTime rawNow = OffsetDateTime.now();
+        long epochMilli = rawNow.toInstant().toEpochMilli();
+        long roundedMilli = (Math.round((double) epochMilli / 2000.0)) * 2000L;
+        OffsetDateTime now = java.time.Instant.ofEpochMilli(roundedMilli).atOffset(rawNow.getOffset());
 
         // 1. Lưu Temperature
         if (telemetry.getTemperature() != null) {
@@ -140,7 +144,9 @@ public class SensorService {
                         .data(dataPoints)
                         .build());
 
-                if (timestamps.isEmpty() && !sortedLogs.isEmpty()) {
+                // Sử dụng timestamps của cảm biến TEMPERATURE làm mốc chuẩn (hoặc cảm biến đầu tiên)
+                if (type == SensorType.TEMPERATURE || timestamps.isEmpty()) {
+                    timestamps.clear();
                     timestamps.addAll(sortedLogs.stream().map(l -> l.getRecordedAt().toString()).toList());
                 }
             });

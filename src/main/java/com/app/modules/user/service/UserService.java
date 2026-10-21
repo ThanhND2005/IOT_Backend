@@ -5,9 +5,11 @@ import com.app.modules.user.entity.User;
 import com.app.common.base.PageResponse;
 import org.springframework.data.domain.Pageable;
 
+import java.util.UUID;
+
 public interface UserService {
 
-    UserResponse getById(Long id);
+    UserResponse getById(UUID id);
 
     UserResponse getByUsername(String username);
 

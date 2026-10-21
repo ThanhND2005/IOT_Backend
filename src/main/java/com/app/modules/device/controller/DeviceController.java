@@ -42,6 +42,15 @@ public class DeviceController {
         return ResponseEntity.ok(BaseResponse.created("Điều khiển thiết bị thành công", response));
     }
 
+    // 2.1. POST /api/v1/devices/control/all
+    @PostMapping("/control/all")
+    public ResponseEntity<BaseResponse<List<DeviceControlResponse>>> controlAllDevices(
+            @Valid @RequestBody DeviceControlRequest request) {
+
+        List<DeviceControlResponse> responses = deviceService.controlAllDevices(request);
+        return ResponseEntity.ok(BaseResponse.ok("Điều khiển tất cả thiết bị thành công", responses));
+    }
+
     // 3. POST /api/v1/devices/history
     @PostMapping("/history")
     public ResponseEntity<BaseResponse<PageResponse<DeviceHistoryItemResponse>>> searchDeviceHistory(
@@ -52,7 +61,7 @@ public class DeviceController {
         Page<DeviceHistory> resultPage = deviceService.searchDeviceHistory(page, pageSize, request);
 
         PageResponse<DeviceHistoryItemResponse> pageResponse = PageResponse.from(resultPage, h -> {
-            Long userId = null;
+            UUID userId = null;
             String fullName = null;
             if (h.getDevice() != null && h.getDevice().getUser() != null) {
                 try {

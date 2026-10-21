@@ -14,6 +14,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.UUID;
+
 @RestController
 @RequestMapping("/users")
 @RequiredArgsConstructor
@@ -41,7 +43,7 @@ public class UserController {
             summary = "Lấy chi tiết người dùng theo ID",
             security = {@SecurityRequirement(name = "Bearer Authentication")}
     )
-    public ResponseEntity<BaseResponse<UserResponse>> getUserById(@PathVariable Long id) {
+    public ResponseEntity<BaseResponse<UserResponse>> getUserById(@PathVariable UUID id) {
         UserResponse response = userService.getById(id);
         return ResponseEntity.ok(BaseResponse.ok("Lấy thông tin người dùng thành công", response));
     }

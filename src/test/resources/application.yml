@@ -29,5 +29,4 @@ mqtt:
   password: "b23dccn772"
   topics:
     sensor-data: sensor/data
-    device-ack: device/ack/+
     device-status: device/status

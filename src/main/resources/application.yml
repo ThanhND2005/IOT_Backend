@@ -91,7 +91,5 @@ mqtt:
   topics:
     sensor-data: sensor/data
     device-control: device/control/
-    device-ack: device/ack/+
-    device-comfirm: device/confirm/
     device-status: device/status
 
